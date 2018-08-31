@@ -1,7 +1,7 @@
 package com.github.pig.admin.controller;
 
 import com.baomidou.mybatisplus.plugins.Page;
-import com.github.pig.admin.model.dto.UserDto;
+import com.github.pig.admin.model.dto.UserDTO;
 import com.github.pig.admin.model.dto.UserInfo;
 import com.github.pig.admin.model.entity.SysUser;
 import com.github.pig.admin.model.entity.SysUserRole;
@@ -10,7 +10,7 @@ import com.github.pig.common.bean.config.FdfsPropertiesConfig;
 import com.github.pig.common.constant.CommonConstant;
 import com.github.pig.common.util.Query;
 import com.github.pig.common.util.R;
-import com.github.pig.common.vo.UserVo;
+import com.github.pig.common.vo.UserVO;
 import com.github.pig.common.web.BaseController;
 import com.luhuiguo.fastdfs.domain.StorePath;
 import com.luhuiguo.fastdfs.service.FastFileStorageClient;
@@ -52,7 +52,7 @@ public class UserController extends BaseController {
      * @return 用户名
      */
     @GetMapping("/info")
-    public R<UserInfo> user(UserVo userVo) {
+    public R<UserInfo> user(UserVO userVo) {
         UserInfo userInfo = userService.findUserInfo(userVo);
         return new R<>(userInfo);
     }
@@ -64,7 +64,7 @@ public class UserController extends BaseController {
      * @return 用户信息
      */
     @GetMapping("/{id}")
-    public UserVo user(@PathVariable Integer id) {
+    public UserVO user(@PathVariable Integer id) {
         return userService.selectUserVoById(id);
     }
 
@@ -75,7 +75,7 @@ public class UserController extends BaseController {
      * @return R
      */
     @ApiOperation(value = "删除用户", notes = "根据ID删除用户")
-    @ApiImplicitParam(name = "id", value = "用户ID", required = true, dataType = "Integer", paramType = "path")
+    @ApiImplicitParam(name = "id", value = "用户ID", required = true, dataType = "int", paramType = "path")
     @DeleteMapping("/{id}")
     public R<Boolean> userDel(@PathVariable Integer id) {
         SysUser sysUser = userService.selectById(id);
@@ -89,16 +89,20 @@ public class UserController extends BaseController {
      * @return success/false
      */
     @PostMapping
-    public R<Boolean> user(@RequestBody UserDto userDto) {
+    public R<Boolean> user(@RequestBody UserDTO userDto) {
         SysUser sysUser = new SysUser();
         BeanUtils.copyProperties(userDto, sysUser);
         sysUser.setDelFlag(CommonConstant.STATUS_NORMAL);
-        sysUser.setPassword(ENCODER.encode(userDto.getPassword()));
+        sysUser.setPassword(ENCODER.encode(userDto.getNewpassword1()));
         userService.insert(sysUser);
-        SysUserRole userRole = new SysUserRole();
-        userRole.setUserId(sysUser.getUserId());
-        userRole.setRoleId(userDto.getRole());
-        return new R<>(userRole.insert());
+
+        userDto.getRole().forEach(roleId -> {
+            SysUserRole userRole = new SysUserRole();
+            userRole.setUserId(sysUser.getUserId());
+            userRole.setRoleId(roleId);
+            userRole.insert();
+        });
+        return new R<>(Boolean.TRUE);
     }
 
     /**
@@ -108,7 +112,7 @@ public class UserController extends BaseController {
      * @return R
      */
     @PutMapping
-    public R<Boolean> userUpdate(@RequestBody UserDto userDto) {
+    public R<Boolean> userUpdate(@RequestBody UserDTO userDto) {
         SysUser user = userService.selectById(userDto.getUserId());
         return new R<>(userService.updateUser(userDto, user.getUsername()));
     }
@@ -120,7 +124,7 @@ public class UserController extends BaseController {
      * @return UseVo 对象
      */
     @GetMapping("/findUserByUsername/{username}")
-    public UserVo findUserByUsername(@PathVariable String username) {
+    public UserVO findUserByUsername(@PathVariable String username) {
         return userService.findUserByUsername(username);
     }
 
@@ -131,7 +135,7 @@ public class UserController extends BaseController {
      * @return UseVo 对象
      */
     @GetMapping("/findUserByMobile/{mobile}")
-    public UserVo findUserByMobile(@PathVariable String mobile) {
+    public UserVO findUserByMobile(@PathVariable String mobile) {
         return userService.findUserByMobile(mobile);
     }
 
@@ -142,7 +146,7 @@ public class UserController extends BaseController {
      * @return 对象
      */
     @GetMapping("/findUserByOpenId/{openId}")
-    public UserVo findUserByOpenId(@PathVariable String openId) {
+    public UserVO findUserByOpenId(@PathVariable String openId) {
         return userService.findUserByOpenId(openId);
     }
 
@@ -150,11 +154,12 @@ public class UserController extends BaseController {
      * 分页查询用户
      *
      * @param params 参数集
+     * @param userVO 用户信息
      * @return 用户集合
      */
     @RequestMapping("/userPage")
-    public Page userPage(@RequestParam Map<String, Object> params) {
-        return userService.selectWithRolePage(new Query(params));
+    public Page userPage(@RequestParam Map<String, Object> params,UserVO userVO) {
+        return userService.selectWithRolePage(new Query(params),userVO);
     }
 
     /**
@@ -186,7 +191,7 @@ public class UserController extends BaseController {
      * @return success/false
      */
     @PutMapping("/editInfo")
-    public R<Boolean> editInfo(@RequestBody UserDto userDto, UserVo userVo) {
+    public R<Boolean> editInfo(@RequestBody UserDTO userDto, UserVO userVo) {
         return new R<>(userService.updateUserInfo(userDto, userVo.getUsername()));
     }
 }

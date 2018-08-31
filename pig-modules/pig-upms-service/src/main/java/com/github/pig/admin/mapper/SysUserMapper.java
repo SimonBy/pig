@@ -4,7 +4,8 @@ import com.baomidou.mybatisplus.mapper.BaseMapper;
 import com.github.pig.admin.model.entity.SysUser;
 import com.github.pig.common.bean.interceptor.DataScope;
 import com.github.pig.common.util.Query;
-import com.github.pig.common.vo.UserVo;
+import com.github.pig.common.vo.UserVO;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -23,16 +24,17 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @param username 用户名
      * @return userVo
      */
-    UserVo selectUserVoByUsername(String username);
+    UserVO selectUserVoByUsername(String username);
 
     /**
      * 分页查询用户信息（含角色）
      *
-     * @param dataScope 数据权限
      * @param query     查询条件
+     * @param username  用户名
+     * @param dataScope 数据权限
      * @return list
      */
-    List selectUserVoPageDataScope(Query query, DataScope dataScope);
+    List selectUserVoPageDataScope(Query query, @Param("username") Object username, DataScope dataScope);
 
     /**
      * 通过手机号查询用户信息（含有角色信息）
@@ -40,7 +42,7 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @param mobile 用户名
      * @return userVo
      */
-    UserVo selectUserVoByMobile(String mobile);
+    UserVO selectUserVoByMobile(String mobile);
 
     /**
      * 通过openId查询用户信息
@@ -48,7 +50,7 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @param openId openid
      * @return userVo
      */
-    UserVo selectUserVoByOpenId(String openId);
+    UserVO selectUserVoByOpenId(String openId);
 
     /**
      * 通过ID查询用户信息
@@ -56,5 +58,5 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @param id 用户ID
      * @return userVo
      */
-    UserVo selectUserVoById(Integer id);
+    UserVO selectUserVoById(Integer id);
 }

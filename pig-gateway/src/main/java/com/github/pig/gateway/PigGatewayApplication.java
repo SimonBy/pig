@@ -1,8 +1,7 @@
 package com.github.pig.gateway;
 
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.cloud.client.SpringCloudApplication;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerInterceptor;
 import org.springframework.cloud.netflix.feign.EnableFeignClients;
@@ -10,15 +9,15 @@ import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * @author lengleng
  */
 @EnableZuulProxy
-@EnableDiscoveryClient
-@SpringBootApplication
 @EnableFeignClients
 @EnableGlobalMethodSecurity(prePostEnabled = true)
+@SpringCloudApplication
 @ComponentScan(basePackages = {"com.github.pig.gateway", "com.github.pig.common.bean"})
 public class PigGatewayApplication {
 
@@ -43,5 +42,10 @@ public class PigGatewayApplication {
     @Bean
     LoadBalancerInterceptor loadBalancerInterceptor(LoadBalancerClient loadBalance){
         return new LoadBalancerInterceptor(loadBalance);
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 }

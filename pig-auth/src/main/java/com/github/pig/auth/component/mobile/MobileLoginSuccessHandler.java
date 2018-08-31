@@ -1,8 +1,8 @@
 package com.github.pig.auth.component.mobile;
 
-import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pig.common.constant.CommonConstant;
+import com.github.pig.common.util.AuthUtils;
 import com.xiaoleilu.hutool.map.MapUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,15 +55,9 @@ public class MobileLoginSuccessHandler implements AuthenticationSuccessHandler {
         }
 
         try {
-            String[] tokens = extractAndDecodeHeader(header);
+            String[] tokens = AuthUtils.extractAndDecodeHeader(header);
             assert tokens.length == 2;
             String clientId = tokens[0];
-            String clientSecret = tokens[1];
-
-            JSONObject params = new JSONObject();
-            params.put("clientId", clientId);
-            params.put("clientSecret", clientSecret);
-            params.put("authentication", authentication);
 
             ClientDetails clientDetails = clientDetailsService.loadClientByClientId(clientId);
             TokenRequest tokenRequest = new TokenRequest(MapUtil.newHashMap(), clientId, clientDetails.getScope(), "mobile");
@@ -83,33 +77,6 @@ public class MobileLoginSuccessHandler implements AuthenticationSuccessHandler {
         }
     }
 
-    /**
-     * Decodes the header into a username and password.
-     *
-     * @throws BadCredentialsException if the Basic header is not present or is not valid
-     *                                 Base64
-     */
-    private String[] extractAndDecodeHeader(String header)
-            throws IOException {
-
-        byte[] base64Token = header.substring(6).getBytes("UTF-8");
-        byte[] decoded;
-        try {
-            decoded = Base64.decode(base64Token);
-        } catch (IllegalArgumentException e) {
-            throw new BadCredentialsException(
-                    "Failed to decode basic authentication token");
-        }
-
-        String token = new String(decoded, CommonConstant.UTF8);
-
-        int delim = token.indexOf(":");
-
-        if (delim == -1) {
-            throw new BadCredentialsException("Invalid basic authentication token");
-        }
-        return new String[]{token.substring(0, delim), token.substring(delim + 1)};
-    }
 
 
 }

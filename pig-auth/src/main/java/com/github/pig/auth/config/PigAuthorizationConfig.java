@@ -1,6 +1,5 @@
 package com.github.pig.auth.config;
 
-import com.github.pig.auth.component.PigWebResponseExceptionTranslator;
 import com.github.pig.common.constant.CommonConstant;
 import com.github.pig.common.constant.SecurityConstants;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,13 +11,23 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.common.DefaultOAuth2AccessToken;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
+import org.springframework.security.oauth2.provider.client.JdbcClientDetailsService;
+import org.springframework.security.oauth2.provider.token.TokenEnhancer;
+import org.springframework.security.oauth2.provider.token.TokenEnhancerChain;
+import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
 import org.springframework.security.oauth2.provider.token.store.redis.RedisTokenStore;
+
+import javax.sql.DataSource;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author lengleng
@@ -30,9 +39,8 @@ import org.springframework.security.oauth2.provider.token.store.redis.RedisToken
 @Order(Integer.MIN_VALUE)
 @EnableAuthorizationServer
 public class PigAuthorizationConfig extends AuthorizationServerConfigurerAdapter {
-
     @Autowired
-    private AuthServerConfig authServerConfig;
+    private DataSource dataSource;
 
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -43,26 +51,25 @@ public class PigAuthorizationConfig extends AuthorizationServerConfigurerAdapter
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;
 
-    @Autowired
-    private PigWebResponseExceptionTranslator pigWebResponseExceptionTranslator;
-
     @Override
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
-        clients.inMemory()
-                .withClient(authServerConfig.getClientId())
-                .secret(authServerConfig.getClientSecret())
-                .authorizedGrantTypes(SecurityConstants.REFRESH_TOKEN, SecurityConstants.PASSWORD,SecurityConstants.AUTHORIZATION_CODE)
-                .scopes(authServerConfig.getScope())
-                .autoApprove(true);
+        JdbcClientDetailsService clientDetailsService = new JdbcClientDetailsService(dataSource);
+        clientDetailsService.setSelectClientDetailsSql(SecurityConstants.DEFAULT_SELECT_STATEMENT);
+        clientDetailsService.setFindClientDetailsSql(SecurityConstants.DEFAULT_FIND_STATEMENT);
+        clients.withClientDetails(clientDetailsService);
     }
 
     @Override
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+        //token增强配置
+        TokenEnhancerChain tokenEnhancerChain = new TokenEnhancerChain();
+        tokenEnhancerChain.setTokenEnhancers(
+                Arrays.asList(tokenEnhancer(), jwtAccessTokenConverter()));
+
         endpoints
-                .tokenStore(new RedisTokenStore(redisConnectionFactory))
-                .accessTokenConverter(jwtAccessTokenConverter())
+                .tokenStore(redisTokenStore())
+                .tokenEnhancer(tokenEnhancerChain)
                 .authenticationManager(authenticationManager)
-                .exceptionTranslator(pigWebResponseExceptionTranslator)
                 .reuseRefreshTokens(false)
                 .userDetailsService(userDetailsService);
     }
@@ -82,9 +89,39 @@ public class PigAuthorizationConfig extends AuthorizationServerConfigurerAdapter
 
     @Bean
     public JwtAccessTokenConverter jwtAccessTokenConverter() {
-        JwtAccessTokenConverter jwtAccessTokenConverter = new JwtAccessTokenConverter();
+        PigJwtAccessTokenConverter jwtAccessTokenConverter = new PigJwtAccessTokenConverter();
         jwtAccessTokenConverter.setSigningKey(CommonConstant.SIGN_KEY);
         return jwtAccessTokenConverter;
+    }
+
+    /**
+     * tokenstore 定制化处理
+     *
+     * @return TokenStore
+     * 1. 如果使用的 redis-cluster 模式请使用 PigRedisTokenStore
+     * PigRedisTokenStore tokenStore = new PigRedisTokenStore();
+     * tokenStore.setRedisTemplate(redisTemplate);
+     */
+    @Bean
+    public TokenStore redisTokenStore() {
+        RedisTokenStore tokenStore = new RedisTokenStore(redisConnectionFactory);
+        tokenStore.setPrefix(SecurityConstants.PIG_PREFIX);
+        return tokenStore;
+    }
+
+    /**
+     * jwt 生成token 定制化处理
+     *
+     * @return TokenEnhancer
+     */
+    @Bean
+    public TokenEnhancer tokenEnhancer() {
+        return (accessToken, authentication) -> {
+            final Map<String, Object> additionalInfo = new HashMap<>(1);
+            additionalInfo.put("license", SecurityConstants.PIG_LICENSE);
+            ((DefaultOAuth2AccessToken) accessToken).setAdditionalInformation(additionalInfo);
+            return accessToken;
+        };
     }
 
 }

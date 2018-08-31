@@ -1,9 +1,11 @@
 package com.github.pig.auth.config;
 
 import com.github.pig.auth.component.mobile.MobileSecurityConfigurer;
-import com.github.pig.common.bean.config.FilterUrlsPropertiesConifg;
+import com.github.pig.common.bean.config.FilterIgnorePropertiesConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
@@ -13,11 +15,12 @@ import org.springframework.security.config.annotation.web.configurers.Expression
  * @author lengleng
  * @date 2018/3/10
  */
+@Order(SecurityProperties.ACCESS_OVERRIDE_ORDER - 1)
 @Configuration
 @EnableWebSecurity
 public class PigSecurityConfigurerAdapter extends WebSecurityConfigurerAdapter {
     @Autowired
-    private FilterUrlsPropertiesConifg filterUrlsPropertiesConifg;
+    private FilterIgnorePropertiesConfig filterIgnorePropertiesConfig;
     @Autowired
     private MobileSecurityConfigurer mobileSecurityConfigurer;
 
@@ -28,9 +31,7 @@ public class PigSecurityConfigurerAdapter extends WebSecurityConfigurerAdapter {
                         .loginProcessingUrl("/authentication/form")
                         .and()
                         .authorizeRequests();
-        for (String url : filterUrlsPropertiesConifg.getAnon()) {
-            registry.antMatchers(url).permitAll();
-        }
+        filterIgnorePropertiesConfig.getUrls().forEach(url -> registry.antMatchers(url).permitAll());
         registry.anyRequest().authenticated()
                 .and()
                 .csrf().disable();

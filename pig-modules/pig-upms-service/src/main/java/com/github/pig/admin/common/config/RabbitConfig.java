@@ -38,12 +38,37 @@ public class RabbitConfig {
      * @return
      */
     @Bean
-    public Queue initServiceStatusChangeQueue() {
-        return new Queue(MqQueueConstant.SERVICE_STATUS_CHANGE);
+    public Queue initMobileServiceStatusChangeQueue() {
+        return new Queue(MqQueueConstant.MOBILE_SERVICE_STATUS_CHANGE);
     }
 
+    /**
+     * 初始化钉钉状态改变队列
+     *
+     * @return
+     */
+    @Bean
+    public Queue initDingTalkServiceStatusChangeQueue() {
+        return new Queue(MqQueueConstant.DINGTALK_SERVICE_STATUS_CHANGE);
+    }
+
+    /**
+     * 初始化zipkin队列
+     *
+     * @return
+     */
     @Bean
     public Queue initZipkinQueue() {
-        return new Queue(MqQueueConstant.ZIPLIN_NAME_QUEUE);
+        return new Queue(MqQueueConstant.ZIPKIN_NAME_QUEUE);
+    }
+
+    /**
+     * 初始化路由配置状态队列
+     *
+     * @return
+     */
+    @Bean
+    public Queue initRouteConfigChangeQueue() {
+        return new Queue(MqQueueConstant.ROUTE_CONFIG_CHANGE);
     }
 }

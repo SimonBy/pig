@@ -1,6 +1,6 @@
 package com.github.pig.admin.model.dto;
 
-import com.github.pig.common.vo.MenuVo;
+import com.github.pig.common.vo.MenuVO;
 import lombok.Data;
 
 /**
@@ -20,6 +20,7 @@ public class MenuTree extends TreeNode {
     private String code;
     private String type;
     private String label;
+    private Integer sort;
 
     public MenuTree() {
     }
@@ -38,7 +39,7 @@ public class MenuTree extends TreeNode {
         this.label = name;
     }
 
-    public MenuTree(MenuVo menuVo) {
+    public MenuTree(MenuVO menuVo) {
         this.id = menuVo.getMenuId();
         this.parentId = menuVo.getParentId();
         this.icon = menuVo.getIcon();
@@ -48,5 +49,6 @@ public class MenuTree extends TreeNode {
         this.component = menuVo.getComponent();
         this.type = menuVo.getType();
         this.label = menuVo.getName();
+        this.sort = menuVo.getSort();
     }
 }
