@@ -1,3 +1,20 @@
+/*
+ *    Copyright (c) 2018-2025, lengleng All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * Neither the name of the pig4cloud.com developer nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ * Author: lengleng (wangiegie@gmail.com)
+ */
+
 package com.github.pig.admin.service.impl;
 
 import com.baomidou.mybatisplus.mapper.EntityWrapper;
@@ -10,16 +27,14 @@ import com.github.pig.admin.service.SysMenuService;
 import com.github.pig.common.constant.CommonConstant;
 import com.github.pig.common.util.Assert;
 import com.github.pig.common.vo.MenuVO;
+import com.xiaoleilu.hutool.collection.CollUtil;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * <p>
@@ -36,32 +51,13 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
 
     @Override
     @Cacheable(value = "menu_details", key = "#role  + '_menu'")
-    public Set<MenuVO> findMenuByRole(String role) {
+    public List<MenuVO> findMenuByRoleName(String role) {
         return sysMenuMapper.findMenuByRoleName(role);
     }
 
     @Override
-    public String[] findPermission(String[] roles) {
-        Set<MenuVO> menuVoSet = new HashSet<>();
-        for (String role : roles) {
-            Set<MenuVO> menuVos = findMenuByRole(role);
-            menuVoSet.addAll(menuVos);
-        }
-
-        Set<String> permissions = new HashSet<>();
-        for (MenuVO menuVo : menuVoSet) {
-            if (StringUtils.isNotEmpty(menuVo.getPermission())) {
-                String permission = menuVo.getPermission();
-                permissions.add(permission);
-            }
-        }
-
-        return permissions.toArray(new String[permissions.size()]);
-    }
-
-    @Override
-    @CacheEvict(value = "menu_details", key = "#role + '_menu'")
-    public Boolean deleteMenu(Integer id, String role) {
+    @CacheEvict(value = "menu_details", allEntries = true)
+    public Boolean deleteMenu(Integer id) {
         Assert.isNull(id, "菜单ID不能为空");
         // 删除当前节点
         SysMenu condition1 = new SysMenu();
@@ -78,27 +74,8 @@ public class SysMenuServiceImpl extends ServiceImpl<SysMenuMapper, SysMenu> impl
     }
 
     @Override
-    @CacheEvict(value = "menu_details", key = "#role + '_menu'")
-    public Boolean updateMenuById(SysMenu sysMenu, String role) {
+    @CacheEvict(value = "menu_details", allEntries = true)
+    public Boolean updateMenuById(SysMenu sysMenu) {
         return this.updateById(sysMenu);
-    }
-
-    /**
-     * 返回角色的菜单
-     *
-     * @param roleName 角色
-     * @return 菜单列表
-     */
-    @Override
-    public List<MenuTree> findUserMenuTree(String roleName) {
-        // 获取符合条件得菜单
-        Set<MenuVO> all = findMenuByRole(roleName);
-        final List<MenuTree> menuTreeList = new ArrayList<>();
-        all.stream().forEach((menuVo -> {
-            if (CommonConstant.MENU.equals(menuVo.getType())) {
-                menuTreeList.add(new MenuTree(menuVo));
-            }
-        }));
-        return TreeUtil.bulid(menuTreeList, -1);
     }
 }

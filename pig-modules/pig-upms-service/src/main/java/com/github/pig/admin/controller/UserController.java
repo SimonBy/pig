@@ -1,3 +1,20 @@
+/*
+ *    Copyright (c) 2018-2025, lengleng All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * Neither the name of the pig4cloud.com developer nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ * Author: lengleng (wangiegie@gmail.com)
+ */
+
 package com.github.pig.admin.controller;
 
 import com.baomidou.mybatisplus.plugins.Page;
@@ -75,7 +92,7 @@ public class UserController extends BaseController {
      * @return R
      */
     @ApiOperation(value = "删除用户", notes = "根据ID删除用户")
-    @ApiImplicitParam(name = "id", value = "用户ID", required = true, dataType = "Integer", paramType = "path")
+    @ApiImplicitParam(name = "id", value = "用户ID", required = true, dataType = "int", paramType = "path")
     @DeleteMapping("/{id}")
     public R<Boolean> userDel(@PathVariable Integer id) {
         SysUser sysUser = userService.selectById(id);
@@ -93,12 +110,16 @@ public class UserController extends BaseController {
         SysUser sysUser = new SysUser();
         BeanUtils.copyProperties(userDto, sysUser);
         sysUser.setDelFlag(CommonConstant.STATUS_NORMAL);
-        sysUser.setPassword(ENCODER.encode(userDto.getPassword()));
+        sysUser.setPassword(ENCODER.encode(userDto.getNewpassword1()));
         userService.insert(sysUser);
-        SysUserRole userRole = new SysUserRole();
-        userRole.setUserId(sysUser.getUserId());
-        userRole.setRoleId(userDto.getRole());
-        return new R<>(userRole.insert());
+
+        userDto.getRole().forEach(roleId -> {
+            SysUserRole userRole = new SysUserRole();
+            userRole.setUserId(sysUser.getUserId());
+            userRole.setRoleId(roleId);
+            userRole.insert();
+        });
+        return new R<>(Boolean.TRUE);
     }
 
     /**
@@ -150,11 +171,12 @@ public class UserController extends BaseController {
      * 分页查询用户
      *
      * @param params 参数集
+     * @param userVO 用户信息
      * @return 用户集合
      */
     @RequestMapping("/userPage")
-    public Page userPage(@RequestParam Map<String, Object> params) {
-        return userService.selectWithRolePage(new Query(params));
+    public Page userPage(@RequestParam Map<String, Object> params,UserVO userVO) {
+        return userService.selectWithRolePage(new Query(params),userVO);
     }
 
     /**
@@ -187,6 +209,6 @@ public class UserController extends BaseController {
      */
     @PutMapping("/editInfo")
     public R<Boolean> editInfo(@RequestBody UserDTO userDto, UserVO userVo) {
-        return new R<>(userService.updateUserInfo(userDto, userVo.getUsername()));
+        return userService.updateUserInfo(userDto, userVo.getUsername());
     }
 }

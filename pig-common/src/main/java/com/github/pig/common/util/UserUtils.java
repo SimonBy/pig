@@ -1,3 +1,20 @@
+/*
+ *    Copyright (c) 2018-2025, lengleng All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * Neither the name of the pig4cloud.com developer nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ * Author: lengleng (wangiegie@gmail.com)
+ */
+
 package com.github.pig.common.util;
 
 import com.alibaba.ttl.TransmittableThreadLocal;
@@ -6,8 +23,6 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import javax.servlet.http.HttpServletRequest;
@@ -39,6 +54,20 @@ public class UserUtils {
     }
 
     /**
+     * 根据header中的token获取用户ID
+     *
+     * @param httpServletRequest
+     * @return 用户ID
+     */
+    public static Integer getUserId(HttpServletRequest httpServletRequest) {
+        String token = getToken(httpServletRequest);
+        String key = Base64.getEncoder().encodeToString(CommonConstant.SIGN_KEY.getBytes());
+        Claims claims = Jwts.parser().setSigningKey(key).parseClaimsJws(token).getBody();
+        Integer userId = (Integer) claims.get("userId");
+        return userId;
+    }
+
+    /**
      * 获取请求中token
      *
      * @param httpServletRequest request
@@ -66,15 +95,6 @@ public class UserUtils {
      */
 
     public static String getUser() {
-        return THREAD_LOCAL_USER.get();
-    }
-
-    /**
-     * 如果没有登录，返回null
-     *
-     * @return 用户名
-     */
-    public static String getUserName() {
         return THREAD_LOCAL_USER.get();
     }
 

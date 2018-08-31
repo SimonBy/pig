@@ -1,6 +1,25 @@
+/*
+ *    Copyright (c) 2018-2025, lengleng All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * Neither the name of the pig4cloud.com developer nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ * Author: lengleng (wangiegie@gmail.com)
+ */
+
 package com.github.pig.admin.service.impl;
 
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.mapper.EntityWrapper;
+import com.baomidou.mybatisplus.mapper.Wrapper;
 import com.baomidou.mybatisplus.plugins.Page;
 import com.baomidou.mybatisplus.service.impl.ServiceImpl;
 import com.github.pig.admin.mapper.SysUserMapper;
@@ -17,16 +36,19 @@ import com.github.pig.common.bean.interceptor.DataScope;
 import com.github.pig.common.constant.CommonConstant;
 import com.github.pig.common.constant.MqQueueConstant;
 import com.github.pig.common.constant.SecurityConstants;
+import com.github.pig.common.constant.enums.EnumSmsChannelTemplate;
 import com.github.pig.common.util.Query;
 import com.github.pig.common.util.R;
 import com.github.pig.common.util.UserUtils;
 import com.github.pig.common.util.template.MobileMsgTemplate;
+import com.github.pig.common.vo.MenuVO;
 import com.github.pig.common.vo.SysRole;
 import com.github.pig.common.vo.UserVO;
 import com.xiaoleilu.hutool.collection.CollectionUtil;
 import com.xiaoleilu.hutool.util.RandomUtil;
 import com.xiaoleilu.hutool.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,9 +59,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -83,9 +103,21 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
         String[] roles = roleNames.toArray(new String[roleNames.size()]);
         userInfo.setRoles(roles);
+
         //设置权限列表（menu.permission）
-        String[] permissions = sysMenuService.findPermission(roles);
-        userInfo.setPermissions(permissions);
+        Set<MenuVO> menuVoSet = new HashSet<>();
+        for (String role : roles) {
+            List<MenuVO> menuVos = sysMenuService.findMenuByRoleName(role);
+            menuVoSet.addAll(menuVos);
+        }
+        Set<String> permissions = new HashSet<>();
+        for (MenuVO menuVo : menuVoSet) {
+            if (StringUtils.isNotEmpty(menuVo.getPermission())) {
+                String permission = menuVo.getPermission();
+                permissions.add(permission);
+            }
+        }
+        userInfo.setPermissions(permissions.toArray(new String[permissions.size()]));
         return userInfo;
     }
 
@@ -120,13 +152,13 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
-    public Page selectWithRolePage(Query query) {
+    public Page selectWithRolePage(Query query, UserVO userVO) {
         DataScope dataScope = new DataScope();
         dataScope.setScopeName("deptId");
         dataScope.setIsOnly(true);
-        dataScope.setDeptIds(getChildDepts());
-        dataScope.putAll(query.getCondition());
-        query.setRecords(sysUserMapper.selectUserVoPageDataScope(query, dataScope));
+        dataScope.setDeptIds(getChildDepts(userVO));
+        Object username = query.getCondition().get("username");
+        query.setRecords(sysUserMapper.selectUserVoPageDataScope(query, username, dataScope));
         return query;
     }
 
@@ -172,7 +204,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 
         SysUser params = new SysUser();
-        params.setIntroduction(mobile);
+        params.setPhone(mobile);
         List<SysUser> userList = this.selectList(new EntityWrapper<>(params));
 
         if (CollectionUtil.isEmpty(userList)) {
@@ -181,8 +213,18 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 
         String code = RandomUtil.randomNumbers(4);
+        JSONObject contextJson = new JSONObject();
+        contextJson.put("code", code);
+        contextJson.put("product", "Pig4Cloud");
         log.info("短信发送请求消息中心 -> 手机号:{} -> 验证码：{}", mobile, code);
-        rabbitTemplate.convertAndSend(MqQueueConstant.MOBILE_CODE_QUEUE, new MobileMsgTemplate(mobile, code, CommonConstant.ALIYUN_SMS));
+        rabbitTemplate.convertAndSend(MqQueueConstant.MOBILE_CODE_QUEUE,
+                new MobileMsgTemplate(
+                        mobile,
+                        contextJson.toJSONString(),
+                        CommonConstant.ALIYUN_SMS,
+                        EnumSmsChannelTemplate.LOGIN_NAME_LOGIN.getSignName(),
+                        EnumSmsChannelTemplate.LOGIN_NAME_LOGIN.getTemplate()
+                ));
         redisTemplate.opsForValue().set(SecurityConstants.DEFAULT_CODE_KEY + mobile, code, SecurityConstants.DEFAULT_IMAGE_EXPIRE, TimeUnit.SECONDS);
         return new R<>(true);
     }
@@ -203,16 +245,22 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     @CacheEvict(value = "user_details", key = "#username")
-    public Boolean updateUserInfo(UserDTO userDto, String username) {
+    public R<Boolean> updateUserInfo(UserDTO userDto, String username) {
         UserVO userVo = this.findUserByUsername(username);
-
         SysUser sysUser = new SysUser();
-        if (ENCODER.matches(userDto.getPassword(), userVo.getPassword())) {
-            sysUser.setPassword(ENCODER.encode(userDto.getNewpassword1()));
+        if (StrUtil.isNotBlank(userDto.getPassword())
+                && StrUtil.isNotBlank(userDto.getNewpassword1())) {
+            if (ENCODER.matches(userDto.getPassword(), userVo.getPassword())) {
+                sysUser.setPassword(ENCODER.encode(userDto.getNewpassword1()));
+            } else {
+                log.warn("原密码错误，修改密码失败:{}", username);
+                return new R<>(Boolean.FALSE, "原密码错误，修改失败");
+            }
         }
+        sysUser.setPhone(userDto.getPhone());
         sysUser.setUserId(userVo.getUserId());
         sysUser.setAvatar(userDto.getAvatar());
-        return this.updateById(sysUser);
+        return new R<>(this.updateById(sysUser));
     }
 
     @Override
@@ -225,20 +273,24 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         SysUserRole condition = new SysUserRole();
         condition.setUserId(userDto.getUserId());
-        SysUserRole sysUserRole = sysUserRoleService.selectOne(new EntityWrapper<>(condition));
-        sysUserRole.setRoleId(userDto.getRole());
-        return sysUserRoleService.update(sysUserRole, new EntityWrapper<>(condition));
+        sysUserRoleService.delete(new EntityWrapper<>(condition));
+        userDto.getRole().forEach(roleId -> {
+            SysUserRole userRole = new SysUserRole();
+            userRole.setUserId(sysUser.getUserId());
+            userRole.setRoleId(roleId);
+            userRole.insert();
+        });
+        return Boolean.TRUE;
     }
 
     /**
      * 获取当前用户的子部门信息
      *
+     * @param userVO 用户信息
      * @return 子部门列表
      */
-    private List<Integer> getChildDepts() {
-        //获取当前用户的部门
-        String username = UserUtils.getUser();
-        UserVO userVo = findUserByUsername(username);
+    private List<Integer> getChildDepts(UserVO userVO) {
+        UserVO userVo = findUserByUsername(userVO.getUsername());
         Integer deptId = userVo.getDeptId();
 
         //获取当前部门的子部门
